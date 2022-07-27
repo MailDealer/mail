@@ -168,6 +168,12 @@ describe Mail::Encodings do
       expect(Mail::Encodings.value_decode(string)).to eq(result)
     end
 
+    it 'should fix broken base64 encoded-words' do
+      string = "=?utf-8?B?0J7RiNC40LHQutCwICDQv9GA0LggINGD0YfRkdGC0LUg0LfQ?=\n =?utf-8?B?sNC60LDQt9CwIDEwMDA2ODg2Ng==?="
+      result = "Ошибка  при  учёте заказа 100068866"
+      expect(Mail::Encodings.value_decode(string)).to eq(result)
+    end
+
     it "should parse adjacent words with no space" do
       string = "=?utf-8?B?0L3QvtCy0YvQuSDRgdC+0YLRgNGD0LTQvdC40Log4oCUINC00L7RgNC+0YQ=?==?utf-8?B?0LXQtdCy?="
       result = "новый сотрудник — дорофеев"
