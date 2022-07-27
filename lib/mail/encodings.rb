@@ -1,5 +1,6 @@
 # encoding: utf-8
 # frozen_string_literal: true
+require 'base64'
 
 module Mail
   # Raised when attempting to decode an unknown encoding type
@@ -115,6 +116,47 @@ module Mail
       end
     end
 
+    def Encodings.b_broken_encoded_word?(lines)
+      encoded_value_regexp = /\=\?([^?]+)\?([QB])\?([^?]*)?\?\=/mi
+      grouped_lines = lines.each_with_object({}) do |line, res|
+        line.gsub(encoded_value_regexp) do
+          key = $2.downcase
+          res[key] ||= { 'lines' => [] }
+          res[key]['encoding'] = $1
+          res[key]['lines'] << $3
+        end
+      end
+
+      begin
+        if grouped_lines['b']
+          grouped_lines['b']['lines'].each do |line|
+            next if ::Base64.decode64(line).force_encoding(grouped_lines['b']['encoding']).valid_encoding?
+
+            return true
+          end
+        end
+      rescue
+      end
+
+      false
+    end
+
+    def Encodings.b_decode_joined_encoded_words(lines)
+      encoded_value_regexp = /\=\?([^?]+)\?([QB])\?([^?]*)?\?\=/mi
+      grouped_lines = lines.each_with_object({}) do |line, res|
+        line.gsub(encoded_value_regexp) do
+          key = $2.downcase
+          res[key] ||= { 'lines' => [] }
+          res[key]['encoding'] = $1
+          res[key]['lines'] << $3
+        end
+      end
+
+      encoding = grouped_lines['b']['encoding']
+      joined_lines = grouped_lines['b']['lines'].join
+      b_value_decode("=?#{encoding}?B?#{joined_lines}?=")
+    end
+
     # Decodes a given string as Base64 or Quoted Printable, depending on what
     # type it is.
     #
@@ -124,6 +166,8 @@ module Mail
       return str unless ENCODED_VALUE.match?(str)
 
       lines = collapse_adjacent_encodings(str)
+
+      return b_decode_joined_encoded_words(lines) if b_broken_encoded_word?(lines)
 
       # Split on white-space boundaries with capture, so we capture the white-space as well
       lines.each do |line|
